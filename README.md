@@ -14,7 +14,7 @@ The system is designed with security and hardware constraints in mind, including
 本專案實作一套基於 RFID 的照相門禁系統，整合 RFID 驗證、繼電器控制、ESP32-CAM 拍照、TLS MQTT 傳輸，以及事件紀錄與查詢。
 
 ## 系統架構
-！[系統架構圖](docs/system_architecture.png)
+![系統架構圖](docs/system_architecture.png)
 
 ## Demo video
 本影片展示 1.RFID 讀取及驗證，2.合法通行時之 Relay 控制，3.ESP32-CAM 影像截取及 MQTT TLS 傳輸
