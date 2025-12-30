@@ -1,21 +1,11 @@
 # **RFID door security system**
 ## Executive Summary
 
-This project implements a secure RFID-based door access control system using a
-Raspberry Pi 5 and an ESP32-CAM. The system integrates RFID authentication,
-relay-based door control, distributed image capture, and secure data transmission
-via TLS-enabled MQTT.
+This project implements a secure RFID-based door access control system using a Raspberry Pi 5 and an ESP32-CAM. The system integrates RFID authentication, relay-based door control, distributed image capture, and secure data transmission via TLS-enabled MQTT.
 
-The Raspberry Pi 5 acts as the central controller, responsible for RFID UID
-verification (HMAC-SHA256), access decision logic, relay control, and event logging.
-The ESP32-CAM is dedicated to image capture and transmits photos back to the
-Raspberry Pi in fragmented Base64 format over MQTT.
+The Raspberry Pi 5 acts as the central controller, responsible for RFID UID verification (HMAC-SHA256), access decision logic, relay control, and event logging. The ESP32-CAM is dedicated to image capture and transmits photos back to the Raspberry Pi in fragmented Base64 format over MQTT.
 
-The system is designed with security and hardware constraints in mind, including
-the RP1 I/O architecture of Raspberry Pi 5 and the current limitations of RC522
-Python libraries. This project demonstrates practical embedded system integration,
-secure communication, and architectural trade-off handling in a real-world IoT
-scenario.
+The system is designed with security and hardware constraints in mind, including the RP1 I/O architecture of Raspberry Pi 5 and the current limitations of RC522 Python libraries. This project demonstrates practical multi-device integration, secure communication, event tracking, and architectural trade-off handling in a real-world IoT scenario.
 
 ------
 
@@ -27,6 +17,8 @@ scenario.
 ！[系統架構圖](docs/system_architecture.png)
 
 ## Demo video
+本影片展示 1.RFID 讀取及驗證，2.合法通行時之 Relay 控制，3.ESP32-CAM 影像截取及 MQTT TLS 傳輸
+
 https://youtu.be/tfpOGa3I91k
 
 **資料流程概覽：**
@@ -67,9 +59,13 @@ RFID Tag
 
 1. 啟動 Mosquitto MQTT Broker
 2. ESP32-CAM 上電
-3. Raspberry Pi 執行主程式：
-   ```bash
-   python RFID.py
+3. Raspberry Pi 執行主程式：`python RFID.py`
+
+預期之結果：
+- MQTT 主題接收 UID 與 Base64 圖像片段
+- 繼電器於合法通行存取時之切換
+- SQLite 產生事件日誌
+
 ## 設計決策 & 已知限制
 
 ### 設計決策
@@ -91,8 +87,7 @@ RFID Tag
 因此本專案採用 混合 GPIO backend 設計：
 - RP1-native (lgpio) → Relay
 - Legacy (RPi.GPIO) → RC522 RFID
-- 此為目前 RP1 + RC522 生態系的已知限制，而非設計缺陷。
-- 若未來 RC522 函式庫支援 RP1-native GPIO，可無痛替換。
+- 此為目前 RC522 Python 函式庫在 RP1 上的當前限制；未來若支援 RP1 原生 GPIO，則可簡化
 -----
 
 ## Security Note
@@ -111,6 +106,8 @@ RFID Tag
     提供 `hmac_uid()` 函式以加密讀入之 UID，供 `RFID.py` 使用以比對 json 檔資料。
 
     明碼 UID 不會被儲存、傳輸或上傳至此 repo。
+
+- 此專案刻意避免儲存或傳輸敏感的 RFID 識別碼
 
 ## 檔案目錄結構
 
