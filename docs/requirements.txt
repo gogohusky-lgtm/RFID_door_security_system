@@ -1,0 +1,13 @@
+# --- Core GPIO (RP1-native) ---
+lgpio==0.2.2.0
+spidev==3.8
+
+# --- RFID (legacy GPIO backend required) ---
+mfrc522==0.0.7
+pi-rc522==2.3.0
+RPi.GPIO==0.7.1   # required by RC522 Python libraries
+
+# --- Messaging / Security ---
+paho-mqtt==2.1.0
+cryptography
+
