@@ -1,121 +1,155 @@
-# **RFID door security system**
-## Executive Summary
+# RFID 門禁安全系統
+### （Raspberry Pi 5 + ESP32-CAM，安全 IoT 整合）
 
-This project implements a secure RFID-based door access control system using a Raspberry Pi 5 and an ESP32-CAM. The system integrates RFID authentication, relay-based door control, distributed image capture, and secure data transmission via TLS-enabled MQTT.
+**核心重點：** 安全的裝置整合、硬體感知設計、真實 IoT 系統取捨
 
-The Raspberry Pi 5 acts as the central controller, responsible for RFID UID verification (HMAC-SHA256), access decision logic, relay control, and event logging. The ESP32-CAM is dedicated to image capture and transmits photos back to the Raspberry Pi in fragmented Base64 format over MQTT.
+---
 
-The system is designed with security and hardware constraints in mind, including the RP1 I/O architecture of Raspberry Pi 5 and the current limitations of RC522 Python libraries. This project demonstrates practical multi-device integration, secure communication, event tracking, and architectural trade-off handling in a real-world IoT scenario.
+## 專案概述
 
-------
+此專案實作了一個 **安全的多裝置 RFID 門禁控制系統**：
 
-## RFID 門禁系統 (Raspberry Pi 5 + ESP32-CAM)
+- Raspberry Pi 5 作為 **中央控制器**（驗證、邏輯、繼電器控制、紀錄）
+- ESP32-CAM 作為 **專用邊緣影像節點**
+- **支援 TLS 的 MQTT** 用於安全的裝置間通訊
+- 以硬體觸發的 **感知 → 決策 → 動作** 工作流程
 
-本專案實作一套基於 RFID 的照相門禁系統，整合 RFID 驗證、繼電器控制、ESP32-CAM 拍照、TLS MQTT 傳輸，以及事件紀錄與查詢。
+> 目標並非 UI 炫麗的展示，而是一個 **可部署的 IoT 系統**，突顯  
+> 安全設計、硬體限制與工程取捨。
 
-## 系統架構
-![系統架構圖](docs/system_architecture.png)
+---
+## 此專案解決了什麼問題？
+此專案明確解決：
+- 單一裝置負擔過多混合職責，使用**分散式職責**，跨異質裝置
+- **硬體感知 GPIO 設計**（Raspberry Pi 5 RP1 I/O 架構）
+- **可靠加密通訊**，確保邊緣裝置間安全互動
 
-## Demo video
-本影片展示 1.RFID 讀取及驗證，2.合法通行時之 Relay 控制，3.ESP32-CAM 影像截取及 MQTT TLS 傳輸
+---
 
+## 主要工程決策與發現
+
+### 安全設計的 RFID 驗證
+- RFID UID 不以明文儲存或傳輸
+- UID 驗證透過 **HMAC-SHA256**
+- 授權清單僅包含 **雜湊值**
+
+### 分散式邊緣架構
+- Raspberry Pi 5：控制邏輯、驗證、繼電器、紀錄
+- ESP32-CAM：僅負責影像截取、分片與傳輸
+- 避免資源競爭，簡化系統推理
+
+### Raspberry Pi 5 GPIO 現實（RP1 I/O）
+- 繼電器控制使用 **RP1 原生 GPIO (`lgpio`)**
+- RC522 Python 生態系仍依賴 **舊版 RPi.GPIO**
+- 專案採用 **混合 GPIO 後端**，作為明確的工程折衷
+
+**結論：**
+> 實用的 IoT 系統往往需要 **混合解決方案**，在安全性、生態成熟度與硬體限制間取得平衡。
+
+---
+
+## Demo
+**RFID 驗證 → 繼電器解鎖 → ESP32-CAM 拍照 → 安全 MQTT 傳輸**
+
+示範影片：  
 https://youtu.be/tfpOGa3I91k
 
-**資料流程概覽：**
+系統架構：
 
-RFID Tag  
-→ Raspberry Pi 5 (`RFID.py`)  
-→ ESP32-CAM (`ESP32.ino`)  
-→ Raspberry Pi 5 (`TakePicture.py`)
+![系統架構圖](docs/system_architecture.png)
 
-## 硬體配置
+---
+
+**詳細設計、實作與安全說明如下**
+
+---
+---
+
+## 1. 系統架構
+
+**資料流程：**
+
+RFID 標籤  
+→ Raspberry Pi 5（RFID 驗證與決策邏輯）  
+→ ESP32-CAM（影像截取）  
+→ Raspberry Pi 5（安全接收與紀錄）
+
+此架構強制 **裝置間職責清晰分工**。
+
+---
+
+## 2. 硬體職責
 
 ### Raspberry Pi 5
-
-負責以下功能：
-
-- RC522 RFID 讀取
-- UID 的 HMAC-SHA256 驗證
-- Relay（門鎖）控制
-- 發送拍照命令至 ESP32-CAM
-- 接收並儲存照片
+- RC522 RFID 讀取器
+- UID 驗證（HMAC-SHA256）
+- 繼電器（門鎖）控制
+- 拍照觸發
+- MQTT TLS 客戶端
 - SQLite 事件紀錄
-- 產生 CSV 檔案供快速查詢
+- 自動 CSV 匯出供稽核
 
 ### ESP32-CAM
+- 相機擷取
+- Base64 編碼
+- 透過 MQTT 分段影像傳輸
 
-- 執行拍照
-- 將影像轉為 Base64
-- 以分片方式透過 MQTT 傳送影像資料
+---
 
-## 軟體元件
+## 3. 安全通訊與資料處理
+
+- MQTT 搭配 **雙向 TLS 驗證**
+- 不以明文儲存敏感識別碼
+- 私鑰與密鑰不納入版本控制
+
+### UID 處理策略
+
+- `authorized_uids.json` 僅儲存 **雜湊值**
+- 明文 UID 僅在離線時使用一次，用於產生雜湊
+- 執行期間不保留 UID
+
+---
+
+## 4. Raspberry Pi 5 GPIO 架構
+
+此專案運行於 **Raspberry Pi 5（RP1 I/O 架構）**。
+
+- 繼電器控制：`lgpio`（RP1 原生）
+- RC522 RFID：既有 Python 函式庫（`mfrc522`, `pi-rc522`）
+  - 目前仍依賴 **舊版 RPi.GPIO 後端**
+
+**工程取捨：**
+- 採用混合 GPIO 後端
+- 反映現有生態限制
+
+---
+
+## 5. 軟體堆疊
 
 - Python 3
-- paho-mqtt
 - Mosquitto MQTT Broker
+- paho-mqtt
 - SQLite
 
-## 啟動順序
+---
 
-1. 啟動 Mosquitto MQTT Broker
-2. ESP32-CAM 上電
-3. Raspberry Pi 執行主程式：`python RFID.py`
+## 6. 啟動流程
 
-預期之結果：
-- MQTT 主題接收 UID 與 Base64 圖像片段
-- 繼電器於合法通行存取時之切換
-- SQLite 產生事件日誌
+1. 啟動 Mosquitto MQTT broker  
+2. 開機 ESP32-CAM  
+3. 在 Raspberry Pi 5 上執行：
 
-## 設計決策 & 已知限制
-
-### 設計決策
-
-- Raspberry Pi 5 負責系統控制與資料整合（RFID、Relay、拍照流程、資料庫）
-- ESP32-CAM 專職於影像擷取，避免在 Raspberry Pi 上直接處理攝影模組
-- 採用 MQTT 作為裝置間通訊協定，並使用 雙向 TLS 確保傳輸安全
-- RFID UID 不以明文儲存或比對：
-    - UID 先以 HMAC-SHA256 雜湊
-    - 授權清單僅儲存雜湊值 (authorized_uids.json)
-
-### GPIO 架構說明（重要）
-此專案運行於 Raspberry Pi 5 (使用**RP1 I/O 架構**).
-
-- **Relay 控制** 使用 `lgpio` (RP1-native GPIO).
-- **RC522 RFID** 使用現有 Python 函式庫 (`mfrc522`, `pi-rc522`)。
-    - 目前 RC522 的 Python 生態仍依賴 **legacy RPi.GPIO backend**，尚未支援純 **RP1-native GPIO stack**。
-
-因此本專案採用 混合 GPIO backend 設計：
-- RP1-native (lgpio) → Relay
-- Legacy (RPi.GPIO) → RC522 RFID
-- 此為目前 RC522 Python 函式庫在 RP1 上的當前限制；未來若支援 RP1 原生 GPIO，則可簡化
------
-
-## Security Note
-
-- authorized_uids.json 僅包含 HMAC 雜湊值
-
-- TLS 私鑰與 SECRET 不會提交至 GitHub
-
-- `Encoding.py` 說明，其有兩個功能:
-
-    1. **離線工具**  
-    由明碼 RFID UID **離線一次性**產生 `authorized_uids.json`。該步驟僅用於初始化授權清單，產生後明碼 UID 會被移除，不參與任何 runtime 驗證流程。
-
-
-    2. **提供程式執行之輔助功能模組**  
-    提供 `hmac_uid()` 函式以加密讀入之 UID，供 `RFID.py` 使用以比對 json 檔資料。
-
-    明碼 UID 不會被儲存、傳輸或上傳至此 repo。
-
-- 此專案刻意避免儲存或傳輸敏感的 RFID 識別碼
-
-## 檔案目錄結構
+```bash
+python RFID.py
+```
+## 7. 檔案目錄結構
 
 ```text
 RFID_door_security/
 ├── docs/
 │   ├── wiring.md
 |   ├── requirements.txt
+│   ├── system_arch.png
 │   └── system_architecture.png
 │
 ├── ESP32/
